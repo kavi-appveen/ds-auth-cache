@@ -43,7 +43,7 @@ AuthCache.prototype.blacklistToken = async function (token, ttl) {
 }
 
 AuthCache.prototype.isTokenBlacklisted = async function (token) {
-    const data = await this.client.getAsync(`token:${token}`);
+    const data = await this.client.existsAsync(`token:${token}`);
     if (data) {
         return true;
     }
@@ -58,16 +58,20 @@ AuthCache.prototype.getUserPermissions = async function (username) {
     return await this.client.getAsync(`perm:${username}`);
 }
 
-AuthCache.prototype.clearUserPermissions = async function (username) {
+AuthCache.prototype.unsetUserPermissions = async function (username) {
     await this.client.del(`perm:${username}`);
 }
 
-AuthCache.prototype.setHeartbeatID = async function (token, hbId, ttl) {
-    await this.client.setAsync(`hb:${token}:${hbId}`, 'WHITELIST', 'EXAT', ttl);
+AuthCache.prototype.setHeartbeatID = async function (token, heartbeatId, ttl) {
+    await this.client.setAsync(`hb:${token}:${heartbeatId}`, 'WHITELIST', 'EXAT', ttl);
 }
 
-AuthCache.prototype.isHeartbeatValid = async function (token, hbId) {
-    const data = await this.client.setAsync(`hb:${token}:${hbId}`);
+AuthCache.prototype.unsetHeartbeatID = async function (token, heartbeatId) {
+    await this.client.del(`hb:${token}:${heartbeatId}`);
+}
+
+AuthCache.prototype.isHeartbeatValid = async function (token, heartbeatId) {
+    const data = await this.client.existsAsync(`hb:${token}:${heartbeatId}`);
     if (data) {
         return true;
     }
