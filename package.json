@@ -1,0 +1,27 @@
+{
+  "name": "@appveen/ds-auth-cache",
+  "version": "1.0.0",
+  "description": "Authentication Cache for Data.Stack",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/appveen/ds-auth-cache.git"
+  },
+  "author": "Jugnu Agrawal",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/appveen/ds-auth-cache/issues"
+  },
+  "homepage": "https://github.com/appveen/ds-auth-cache#readme",
+  "dependencies": {
+    "bluebird": "^3.7.2",
+    "ioredis": "^4.27.11"
+  },
+  "devDependencies": {
+    "@types/bluebird": "^3.5.36",
+    "@types/ioredis": "^4.27.6"
+  }
+}
