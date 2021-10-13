@@ -66,7 +66,8 @@ AuthCache.prototype.setUserPermissions = async function (username, permissions) 
 }
 
 AuthCache.prototype.getUserPermissions = async function (username) {
-    return await this.client.getAsync(`perm:${username}`);
+    const temp = await this.client.getAsync(`perm:${username}`);
+    return typeof temp === 'string' ? JSON.parse(temp) : [];
 }
 
 AuthCache.prototype.unsetUserPermissions = async function (username) {
@@ -93,8 +94,9 @@ AuthCache.prototype.isHeartbeatValid = async function (token, heartbeatId) {
 /**
  * @param {object} options
  * @param {string} options.secret The JWT token secret
- * @param {boolean} options.decodeOnly If true, it won't validate JWT Token
- * @param {string[]} options.permittedUrls List of URL that doesn't need JWT Token
+ * @param {boolean} [options.decodeOnly] If true, it won't validate JWT Token
+ * @param {string[]} [options.permittedUrls] List of URL that doesn't need JWT Token
+ * @param {string} [options.app] App Can be provided for App specific services
  */
 function AuthCacheMW(options) {
     const authCache = new AuthCache();
@@ -148,8 +150,18 @@ function AuthCacheMW(options) {
             logger.trace(`[${req.header('txnId')}] [ds-auth-cache] Token Data : ${JSON.stringify(user)}`);
 
             // Fetching from Redis Cache
-            const permissions = await authCache.getUserPermissions(user._id);
-            user.permissions = permissions || [];
+            if (options.app) {
+                user.appPermissions = (await authCache.getUserPermissions(user._id + '_' + options.app) || []);
+            }
+            const keys = (await authCache.client.keys(`perm:${user._id}*`) || []);
+            const permissions = await Promise.all(keys.map(async (key) => {
+                let perms = await authCache.client.get(key);
+                const p = {};
+                p.app = key.split('_')[1];
+                p.permissions = typeof perms === 'string' ? JSON.parse(perms) : [];
+                return p;
+            }));
+            user.allPermissions = permissions || [];
             Object.defineProperty(req, 'user', {
                 configurable: true,
                 enumerable: true,
