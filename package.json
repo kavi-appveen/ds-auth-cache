@@ -18,7 +18,8 @@
   "homepage": "https://github.com/appveen/ds-auth-cache#readme",
   "dependencies": {
     "bluebird": "^3.7.2",
-    "ioredis": "^4.27.11"
+    "ioredis": "^4.27.11",
+    "jsonwebtoken": "^8.5.1"
   },
   "devDependencies": {
     "@types/bluebird": "^3.5.36",

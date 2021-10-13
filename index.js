@@ -1,10 +1,21 @@
+const crypto = require('crypto');
 const bluebird = require('bluebird');
 const Redis = require('ioredis');
+const JWT = require('jsonwebtoken');
 
 const host = process.env.CACHE_HOST || 'localhost';
 const port = process.env.CACHE_PORT ? parseInt(process.env.CACHE_PORT) : 6379;
 
-const logger = global.logger;
+let logger = global.logger;
+
+if (!logger) {
+    logger = {
+        debug: console.log,
+        trace: console.log,
+        info: console.log,
+        error: console.error,
+    };
+}
 
 function getClusterNodes() {
     let nodes = [];
@@ -22,19 +33,19 @@ function getClusterNodes() {
 function AuthCache() {
     this.client = null;
     if (process.env.CACHE_CLUSTER) {
-        logger.info('Connecting to cache cluster');
-        logger.info('Cache cluster nodes :: ', JSON.stringify(getClusterNodes()));
+        logger.info('[ds-auth-cache] Connecting to cache cluster');
+        logger.info('[ds-auth-cache] Cache cluster nodes :: ', JSON.stringify(getClusterNodes()));
         this.client = new Redis.Cluster(getClusterNodes());
     } else {
-        logger.info('Connecting to standalone cache');
+        logger.info('[ds-auth-cache] Connecting to standalone cache');
         this.client = new Redis(port, host);
     }
     this.client = bluebird.promisifyAll(this.client);
     this.client.on('error', function (err) {
-        logger.error(err.message);
+        logger.error('[ds-auth-cache]', err.message);
     });
     this.client.on('connect', function () {
-        logger.info('Cache client connected');
+        logger.info('[ds-auth-cache] Cache client connected');
     });
 }
 
@@ -78,4 +89,105 @@ AuthCache.prototype.isHeartbeatValid = async function (token, heartbeatId) {
     return false;
 }
 
-module.exports = AuthCache;
+
+/**
+ * @param {object} options
+ * @param {string} options.secret The JWT token secret
+ * @param {boolean} options.decodeOnly If true, it won't validate JWT Token
+ * @param {string[]} options.permittedUrls List of URL that doesn't need JWT Token
+ */
+function AuthCacheMW(options) {
+    const authCache = new AuthCache();
+    if (!options) {
+        throw new Error('Options is Required');
+    }
+    if (!options.secret) {
+        throw new Error('Secret is Required');
+    }
+    if (!options.permittedUrls) {
+        options.permittedUrls = [];
+    }
+    if (!options.decodeOnly) {
+        options.decodeOnly = false;
+    }
+    return async function (req, res, next) {
+        try {
+            if (options.permittedUrls.some(_url => compareURL(_url, req.path)) || req.path.indexOf('/health') > -1 || req.path.indexOf('/export') > -1) {
+                return next();
+            }
+            logger.debug(`[${req.header('txnId')}] [ds-auth-cache] Validating token format`);
+            let token = req.header('authorization');
+
+            if (!token && req.cookies) {
+                logger.debug(`[${req.header('txnId')}] [ds-auth-cache] No token found in 'authorization' header`);
+                logger.debug(`[${req.header('txnId')}] [ds-auth-cache] Checking for 'authorization' token in cookie`);
+                token = req.cookies.Authorization;
+            }
+
+            if (!token) return res.status(401).json({ message: 'Unauthorized' });
+
+            token = token.split('JWT ')[1];
+            let user;
+            if (options.decodeOnly) {
+                user = JWT.decode(token, { json: true });
+            } else {
+                user = JWT.verify(token, options.secret, { ignoreExpiration: true });
+            }
+            if (!user) {
+                logger.error(`[${req.header('txnId')}] [ds-auth-cache] Invalid JWT format`);
+                return res.status(401).json({ 'message': 'Unauthorized' });
+            }
+
+            if (typeof user === 'string') {
+                user = JSON.parse(user)
+            }
+            let tokenHash = md5(token);
+            logger.debug(`[${req.header('txnId')}] [ds-auth-cache] Token hash :: ${tokenHash}`);
+            req.tokenHash = tokenHash;
+
+            logger.trace(`[${req.header('txnId')}] [ds-auth-cache] Token Data : ${JSON.stringify(user)}`);
+
+            // Fetching from Redis Cache
+            const permissions = await authCache.getUserPermissions(user._id);
+            user.permissions = permissions || [];
+            Object.defineProperty(req, 'user', {
+                configurable: true,
+                enumerable: true,
+                value: user
+            });
+            Object.defineProperty(req, 'authCache', {
+                configurable: true,
+                enumerable: true,
+                value: authCache
+            });
+            next();
+        } catch (err) {
+            logger.error(`[${req.header('txnId')}] [ds-auth-cache]`, err);
+            res.status(500).json({ message: err.message });
+        }
+    }
+
+    function compareURL(tempUrl, url) {
+        let tempUrlSegment = tempUrl.split("/").filter(_d => _d != "");
+        let urlSegment = url.split("/").filter(_d => _d != "");
+        if (tempUrlSegment.length != urlSegment.length) return false;
+
+        tempUrlSegment.shift();
+        urlSegment.shift();
+
+        let flag = tempUrlSegment.every((_k, i) => {
+            if (_k.startsWith("{") && _k.endsWith("}") && urlSegment[i] != "") return true;
+            return _k === urlSegment[i];
+        });
+        logger.trace(`[ds-auth-cache] Compare URL :: ${tempUrl}, ${url} :: ${flag}`);
+        return flag;
+    }
+    function md5(text) {
+        return crypto.createHash('md5').update(text).digest('hex');
+    }
+}
+
+module.exports = {
+    AuthCache,
+    AuthCacheMW
+};
