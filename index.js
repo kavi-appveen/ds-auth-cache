@@ -157,7 +157,7 @@ function AuthCacheMW(options) {
             const permissions = await Promise.all(keys.map(async (key) => {
                 let perms = await authCache.client.get(key);
                 const p = {};
-                p.app = key.split('_')[1];
+                p.app = key.split('_').pop();
                 p.permissions = typeof perms === 'string' ? JSON.parse(perms) : [];
                 return p;
             }));
