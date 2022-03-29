@@ -61,6 +61,20 @@ AuthCache.prototype.whitelistToken = async function (username, token) {
     await this.client.setAsync(`user:${username}`, JSON.stringify(temp));
 }
 
+AuthCache.prototype.isSessionActive = async function (username) {
+    let temp = await this.client.getAsync(`user:${username}`);
+    if (!temp) {
+        return false;
+    }
+    if (typeof temp == 'string') {
+        temp = JSON.parse(temp);
+    }
+    if (Array.isArray(temp) && temp.length > 0) {
+        return true;
+    }
+    return false;
+}
+
 AuthCache.prototype.endSession = async function (username) {
     let temp = await this.client.getAsync(`user:${username}`);
     if (!temp) {
