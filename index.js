@@ -49,6 +49,20 @@ function AuthCache() {
     });
 }
 
+AuthCache.prototype.isValidToken = async function (username, token) {
+    let temp = await this.client.getAsync(`user:${username}`);
+    if (!temp) {
+        return false;
+    }
+    if (typeof temp == 'string') {
+        temp = JSON.parse(temp);
+    }
+    if (Array.isArray(temp) && temp.indexOf(token) > -1) {
+        return true;
+    }
+    return false;
+}
+
 AuthCache.prototype.whitelistToken = async function (username, token) {
     let temp = await this.client.getAsync(`user:${username}`);
     if (!temp) {
