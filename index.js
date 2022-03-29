@@ -90,10 +90,8 @@ AuthCache.prototype.endSession = async function (username) {
 }
 
 AuthCache.prototype.blacklistToken = async function (token) {
-    const data = JWT.decode(token, { json: true });
-    if (data && data.exp) {
-        await this.client.setAsync(`token:${token}`, 'BLACKLIST', 'EXAT', data.exp);
-    }
+    const ttl = parseInt(process.env.RBAC_USER_TOKEN_DURATION || '600')
+    await this.client.setAsync(`token:${token}`, 'BLACKLIST', 'EXAT', ttl);
 }
 
 AuthCache.prototype.isTokenBlacklisted = async function (token) {
