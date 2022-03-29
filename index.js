@@ -49,8 +49,37 @@ function AuthCache() {
     });
 }
 
-AuthCache.prototype.blacklistToken = async function (token, ttl) {
-    await this.client.setAsync(`token:${token}`, 'BLACKLIST', 'EXAT', ttl);
+AuthCache.prototype.whitelistToken = async function (username, token) {
+    let temp = await this.client.getAsync(`user:${username}`);
+    if (!temp) {
+        temp = [];
+    }
+    if (typeof temp == 'string') {
+        temp = JSON.parse(temp);
+    }
+    temp.push(token);
+    await this.client.setAsync(`user:${username}`, JSON.stringify(temp));
+}
+
+AuthCache.prototype.endSession = async function (username) {
+    let temp = await this.client.getAsync(`user:${username}`);
+    if (!temp) {
+        temp = [];
+    }
+    if (typeof temp == 'string') {
+        temp = JSON.parse(temp);
+    }
+    temp.forEach(token => {
+        this.blacklistToken(token);
+    });
+    await this.client.setAsync(`user:${username}`, JSON.stringify([]));
+}
+
+AuthCache.prototype.blacklistToken = async function (token) {
+    const data = JWT.decode(token, { json: true });
+    if (data && data.exp) {
+        await this.client.setAsync(`token:${token}`, 'BLACKLIST', 'EXAT', data.exp);
+    }
 }
 
 AuthCache.prototype.isTokenBlacklisted = async function (token) {
