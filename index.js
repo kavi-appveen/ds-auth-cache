@@ -49,6 +49,11 @@ function AuthCache() {
     });
 }
 
+AuthCache.prototype.isConnected = function () {
+    logger.trace(`Cache connection status : ${this.client.status}, ${this.client.status == 'ready'}`)
+    return this.client.status == 'ready';
+}
+
 AuthCache.prototype.isValidToken = async function (username, token) {
     let temp = await this.client.getAsync(`user:${username}`);
     if (!temp) {
