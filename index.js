@@ -2,6 +2,8 @@ const crypto = require('crypto');
 const bluebird = require('bluebird');
 const Redis = require('ioredis');
 const JWT = require('jsonwebtoken');
+const log4js = require('log4js');
+const version = require('./package.json').version;
 
 const host = process.env.CACHE_HOST || 'localhost';
 const port = process.env.CACHE_PORT ? parseInt(process.env.CACHE_PORT) : 6379;
@@ -9,13 +11,10 @@ const port = process.env.CACHE_PORT ? parseInt(process.env.CACHE_PORT) : 6379;
 let logger = global.logger;
 
 if (!logger) {
-    logger = {
-        debug: console.log,
-        trace: console.log,
-        info: console.log,
-        error: console.error,
-    };
+    logger = log4js.getLogger(`[ds-auth-cache] [${version}]`);
+    logger.level = process.env.LOG_LEVEL || 'info';
 }
+
 
 function getClusterNodes() {
     let nodes = [];
@@ -33,19 +32,18 @@ function getClusterNodes() {
 function AuthCache() {
     this.client = null;
     if (process.env.CACHE_CLUSTER) {
-        logger.info('[ds-auth-cache] Connecting to cache cluster');
-        logger.info('[ds-auth-cache] Cache cluster nodes :: ', JSON.stringify(getClusterNodes()));
+        logger.info('Connecting to cache cluster');
+        logger.info('Cache cluster nodes :: ', JSON.stringify(getClusterNodes()));
         this.client = new Redis.Cluster(getClusterNodes());
     } else {
-        logger.info('[ds-auth-cache] Connecting to standalone cache');
-        this.client = new Redis(port, host);
+        logger.info(' Connecting to standalone cache'); this.client = new Redis(port, host);
     }
     this.client = bluebird.promisifyAll(this.client);
     this.client.on('error', function (err) {
-        logger.error('[ds-auth-cache]', err.message);
+        logger.error(err.message);
     });
     this.client.on('connect', function () {
-        logger.info('[ds-auth-cache] Cache client connected');
+        logger.info('Cache client connected');
     });
 }
 
@@ -177,12 +175,12 @@ function AuthCacheMW(options) {
             if (options.permittedUrls.some(_url => compareURL(_url, req.path)) || req.path.indexOf('/health') > -1 || req.path.indexOf('/export') > -1) {
                 return next();
             }
-            logger.debug(`[${req.header('txnId')}] [ds-auth-cache] Validating token format`);
+            logger.debug(`[${req.header('txnId')}] Validating token format`);
             let token = req.header('authorization');
 
             if (!token && req.cookies) {
-                logger.debug(`[${req.header('txnId')}] [ds-auth-cache] No token found in 'authorization' header`);
-                logger.debug(`[${req.header('txnId')}] [ds-auth-cache] Checking for 'authorization' token in cookie`);
+                logger.debug(`[${req.header('txnId')}] No token found in 'authorization' header`);
+                logger.debug(`[${req.header('txnId')}] Checking for 'authorization' token in cookie`);
                 token = req.cookies.Authorization;
             }
 
@@ -196,7 +194,7 @@ function AuthCacheMW(options) {
                 user = JWT.verify(token, options.secret, { ignoreExpiration: true });
             }
             if (!user) {
-                logger.error(`[${req.header('txnId')}] [ds-auth-cache] Invalid JWT format`);
+                logger.error(`[${req.header('txnId')}] Invalid JWT format`);
                 return res.status(401).json({ 'message': 'Unauthorized' });
             }
 
@@ -204,10 +202,10 @@ function AuthCacheMW(options) {
                 user = JSON.parse(user)
             }
             let tokenHash = md5(token);
-            logger.debug(`[${req.header('txnId')}] [ds-auth-cache] Token hash :: ${tokenHash}`);
+            logger.debug(`[${req.header('txnId')}] Token hash :: ${tokenHash}`);
             req.tokenHash = tokenHash;
 
-            logger.trace(`[${req.header('txnId')}] [ds-auth-cache] Token Data : ${JSON.stringify(user)}`);
+            logger.trace(`[${req.header('txnId')}] Token Data : ${JSON.stringify(user)}`);
 
             // Fetching from Redis Cache
             if (options.app) {
@@ -234,7 +232,7 @@ function AuthCacheMW(options) {
             });
             next();
         } catch (err) {
-            logger.error(`[${req.header('txnId')}] [ds-auth-cache]`, err);
+            logger.error(`[${req.header('txnId')}]`, err);
             res.status(500).json({ message: err.message });
         }
     }
@@ -251,7 +249,7 @@ function AuthCacheMW(options) {
             if (_k.startsWith("{") && _k.endsWith("}") && urlSegment[i] != "") return true;
             return _k === urlSegment[i];
         });
-        logger.trace(`[ds-auth-cache] Compare URL :: ${tempUrl}, ${url} :: ${flag}`);
+        logger.trace(`Compare URL :: ${tempUrl}, ${url} :: ${flag}`);
         return flag;
     }
     function md5(text) {
