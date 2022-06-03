@@ -133,10 +133,10 @@ AuthCache.prototype.getData = async function (username) {
 AuthCache.prototype.setData = async function (username, data) {
     let temp = await this.getData();
     if (temp) {
-        temp = _.merge(temp, data);
+        data = _.merge(temp, data);
     }
     const ttl = parseInt(process.env.RBAC_USER_TOKEN_DURATION || '600')
-    await this.client.setAsync(`data:${username}`, JSON.stringify(temp), 'EXAT', ttl);
+    await this.client.setAsync(`data:${username}`, JSON.stringify(data), 'EXAT', ttl);
 };
 
 AuthCache.prototype.clearData = async function (username) {
