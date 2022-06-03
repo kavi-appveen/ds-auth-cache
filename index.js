@@ -109,7 +109,7 @@ AuthCache.prototype.endSession = async function (username) {
 
 AuthCache.prototype.blacklistToken = async function (token) {
     const ttl = parseInt(process.env.RBAC_USER_TOKEN_DURATION || '600')
-    await this.client.setAsync(`token:${token}`, 'BLACKLIST', 'EXAT', ttl);
+    await this.client.setAsync(`token:${token}`, 'BLACKLIST', 'EX', ttl);
 }
 
 AuthCache.prototype.isTokenBlacklisted = async function (token) {
@@ -136,7 +136,7 @@ AuthCache.prototype.setData = async function (username, data) {
         data = _.merge(temp, data);
     }
     const ttl = parseInt(process.env.RBAC_USER_TOKEN_DURATION || '600')
-    await this.client.setAsync(`data:${username}`, JSON.stringify(data), 'EXAT', ttl);
+    await this.client.setAsync(`data:${username}`, JSON.stringify(data), 'EX', ttl);
 };
 
 AuthCache.prototype.clearData = async function (username) {
@@ -157,7 +157,7 @@ AuthCache.prototype.unsetUserPermissions = async function (username) {
 }
 
 AuthCache.prototype.setHeartbeatID = async function (token, heartbeatId, ttl) {
-    await this.client.setAsync(`hb:${token}:${heartbeatId}`, 'WHITELIST', 'EXAT', ttl);
+    await this.client.setAsync(`hb:${token}:${heartbeatId}`, 'WHITELIST', 'EX', ttl);
 }
 
 AuthCache.prototype.unsetHeartbeatID = async function (token, heartbeatId) {
