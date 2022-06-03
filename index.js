@@ -104,6 +104,7 @@ AuthCache.prototype.endSession = async function (username) {
         this.blacklistToken(token);
     });
     await this.client.setAsync(`user:${username}`, JSON.stringify([]));
+    await this.client.del(`data:${username}`);
 }
 
 AuthCache.prototype.blacklistToken = async function (token) {
@@ -118,6 +119,29 @@ AuthCache.prototype.isTokenBlacklisted = async function (token) {
     }
     return false;
 }
+
+AuthCache.prototype.getData = async function (username) {
+    let data = await this.client.getAsync(`data:${username}`);
+    if (data && typeof data === 'string') {
+        try {
+            data = JSON.parse(data);
+        } catch (err) { }
+    }
+    return data;
+};
+
+AuthCache.prototype.setData = async function (username, data) {
+    let temp = await this.getData();
+    if (temp) {
+        temp = _.merge(temp, data);
+    }
+    const ttl = parseInt(process.env.RBAC_USER_TOKEN_DURATION || '600')
+    await this.client.setAsync(`data:${username}`, JSON.stringify(temp), 'EXAT', ttl);
+};
+
+AuthCache.prototype.clearData = async function (username) {
+    await this.client.del(`data:${username}`);
+};
 
 AuthCache.prototype.setUserPermissions = async function (username, permissions) {
     await this.client.setAsync(`perm:${username}`, JSON.stringify(permissions));
