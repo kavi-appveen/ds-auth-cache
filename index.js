@@ -225,6 +225,12 @@ function AuthCacheMW(options) {
             if (typeof user === 'string') {
                 user = JSON.parse(user)
             }
+
+            const dataFromCache = await authCache.getData(user._id);
+            if (dataFromCache && dataFromCache.userData) {
+                user = Object.assign(user, dataFromCache.userData);
+            }
+
             let tokenHash = md5(token);
             logger.debug(`[${req.header('txnId')}] Token hash :: ${tokenHash}`);
             req.tokenHash = tokenHash;
